@@ -72,22 +72,26 @@ function AdminDashboard() {
 
   useEffect(() => {
     const playersRef = collection(db, "games", gameId, "players");
-    const unsubPlayers = onSnapshot(playersRef, (snap) => {
-      const list: Array<{ id: string; data: Player }> = [];
-      snap.forEach((docSnap) => {
-        const d = docSnap.data();
-        list.push({
-          id: docSnap.id,
-          data: {
-            name: d.name ?? "",
-            score: typeof d.score === "number" ? d.score : 0,
-            joinedAt: d.joinedAt ?? { seconds: 0, nanoseconds: 0 },
-            answers: (d.answers as Record<string, number>) ?? {},
-          },
+    const unsubPlayers = onSnapshot(
+      playersRef,
+      { includeMetadataChanges: true },
+      (snap) => {
+        const list: Array<{ id: string; data: Player }> = [];
+        snap.forEach((docSnap) => {
+          const d = docSnap.data();
+          list.push({
+            id: docSnap.id,
+            data: {
+              name: d.name ?? "",
+              score: typeof d.score === "number" ? d.score : 0,
+              joinedAt: d.joinedAt ?? { seconds: 0, nanoseconds: 0 },
+              answers: (d.answers as Record<string, number>) ?? {},
+            },
+          });
         });
-      });
-      setPlayers(list);
-    });
+        setPlayers(list);
+      }
+    );
     return () => unsubPlayers();
   }, [gameId]);
 
@@ -331,6 +335,9 @@ function AdminDashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Top 5 leaderboard</CardTitle>
+            <CardDescription>
+              Updates in real time as scores change
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -341,7 +348,9 @@ function AdminDashboard() {
                   <TableHead className="text-right">Score</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
+              <TableBody
+                key={`leaderboard-${leaderboard.map((p) => `${p.id}-${p.data.score}`).join(",")}`}
+              >
                 {leaderboard.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={3} className="text-center text-muted-foreground">
