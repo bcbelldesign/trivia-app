@@ -1,4 +1,6 @@
 export type GameStateValue = "lobby" | "question" | "results";
+export type ThemeName = "default" | "tweakcn";
+export type QuestionSetName = "default" | "nineties";
 
 export interface GameState {
   state: GameStateValue;
@@ -6,6 +8,8 @@ export interface GameState {
   showResults: boolean;
   lastScoredQuestionIndex?: number;
   responseCounts?: Record<string, number>;
+  theme?: ThemeName;
+  questionSet?: QuestionSetName;
 }
 
 export interface Player {

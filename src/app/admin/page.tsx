@@ -13,9 +13,17 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { QUESTIONS } from "@/lib/questions";
-import type { GameState, Player } from "@/types/game";
+import { QUESTION_SETS } from "@/lib/questions";
+import type { GameState, Player, ThemeName, QuestionSetName } from "@/types/game";
 import { Button } from "@/components/ui/button";
+import { Pressable } from "@/components/motion/Pressable";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -51,6 +59,8 @@ function parseGameDoc(data: Record<string, unknown> | undefined): GameState {
       typeof data.lastScoredQuestionIndex === "number"
         ? data.lastScoredQuestionIndex
         : -1,
+    theme: (data.theme as ThemeName | undefined) ?? "default",
+    questionSet: (data.questionSet as QuestionSetName | undefined) ?? "default",
   };
 }
 
@@ -146,7 +156,7 @@ function AdminDashboard() {
     }
     setBusy(true);
     try {
-      const question = QUESTIONS[currentIndex];
+      const question = QUESTION_SETS[game?.questionSet ?? "default"][currentIndex];
       const correctIndex = question.correctIndex;
       const playersRef = collection(db, "games", gameId, "players");
       const snap = await getDocs(playersRef);
@@ -179,10 +189,15 @@ function AdminDashboard() {
 
   const nextQuestion = async () => {
     if (!game) return;
-    const next = Math.min(game.currentQuestionIndex + 1, QUESTIONS.length - 1);
+    const next = Math.min(game.currentQuestionIndex + 1, QUESTION_SETS[game.questionSet ?? "default"].length - 1);
     await setDoc(
       gameRef,
-      { currentQuestionIndex: next, state: "question", showResults: false },
+      {
+        currentQuestionIndex: next,
+        state: "question",
+        showResults: false,
+        responseCounts: { "0": 0, "1": 0, "2": 0, "3": 0 },
+      },
       { merge: true }
     );
   };
@@ -192,9 +207,22 @@ function AdminDashboard() {
     const prev = Math.max(game.currentQuestionIndex - 1, 0);
     await setDoc(
       gameRef,
-      { currentQuestionIndex: prev, state: "question", showResults: false },
+      {
+        currentQuestionIndex: prev,
+        state: "question",
+        showResults: false,
+        responseCounts: { "0": 0, "1": 0, "2": 0, "3": 0 },
+      },
       { merge: true }
     );
+  };
+
+  const setTheme = async (theme: ThemeName) => {
+    await setDoc(gameRef, { theme }, { merge: true });
+  };
+
+  const setQuestionSet = async (questionSet: QuestionSetName) => {
+    await setDoc(gameRef, { questionSet }, { merge: true });
   };
 
   const resetGame = async () => {
@@ -222,13 +250,11 @@ function AdminDashboard() {
     }
   };
 
+  const activeQuestions = QUESTION_SETS[game?.questionSet ?? "default"];
   const currentIndex = game
-    ? Math.min(
-        Math.max(0, game.currentQuestionIndex),
-        QUESTIONS.length - 1
-      )
+    ? Math.min(Math.max(0, game.currentQuestionIndex), activeQuestions.length - 1)
     : 0;
-  const question = QUESTIONS[currentIndex];
+  const question = activeQuestions[currentIndex];
 
   const distribution = [0, 1, 2, 3].map((choiceIndex) => {
     const count = players.filter(
@@ -260,35 +286,86 @@ function AdminDashboard() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+            <CardDescription>Switch the theme and question set for all players globally.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-sm text-muted-foreground">Theme</span>
+              <Select
+                value={game?.theme ?? "default"}
+                onValueChange={(v) => setTheme(v as ThemeName)}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Select theme" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Default</SelectItem>
+                  <SelectItem value="tweakcn">tweakcn</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-sm text-muted-foreground">Question Set</span>
+              <Select
+                value={game?.questionSet ?? "default"}
+                onValueChange={(v) => setQuestionSet(v as QuestionSetName)}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Select questions" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Default</SelectItem>
+                  <SelectItem value="nineties">90s Pop Culture</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Controls</CardTitle>
             <CardDescription>Start lobby first, then run questions.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
-            <Button onClick={startLobby} disabled={busy}>
-              Start Lobby
-            </Button>
-            <Button onClick={startQuestion} disabled={busy}>
-              Start Question
-            </Button>
-            <Button onClick={revealResults} disabled={busy}>
-              Reveal Results
-            </Button>
-            <Button variant="outline" onClick={prevQuestion} disabled={busy}>
-              Prev
-            </Button>
-            <Button variant="outline" onClick={nextQuestion} disabled={busy}>
-              Next
-            </Button>
-            <Button variant="destructive" onClick={resetGame} disabled={busy}>
-              Reset Game
-            </Button>
+            <Pressable>
+              <Button onClick={startLobby} disabled={busy}>
+                Start Lobby
+              </Button>
+            </Pressable>
+            <Pressable>
+              <Button onClick={startQuestion} disabled={busy}>
+                Start Question
+              </Button>
+            </Pressable>
+            <Pressable>
+              <Button onClick={revealResults} disabled={busy}>
+                Reveal Results
+              </Button>
+            </Pressable>
+            <Pressable>
+              <Button variant="outline" onClick={prevQuestion} disabled={busy}>
+                Prev
+              </Button>
+            </Pressable>
+            <Pressable>
+              <Button variant="outline" onClick={nextQuestion} disabled={busy}>
+                Next
+              </Button>
+            </Pressable>
+            <Pressable>
+              <Button variant="destructive" onClick={resetGame} disabled={busy}>
+                Reset Game
+              </Button>
+            </Pressable>
           </CardContent>
         </Card>
 
         {question && (
           <Card>
             <CardHeader>
-              <CardTitle>Question {currentIndex + 1} of {QUESTIONS.length}</CardTitle>
+              <CardTitle>Question {currentIndex + 1} of {activeQuestions.length}</CardTitle>
               <CardDescription>{question.prompt}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
